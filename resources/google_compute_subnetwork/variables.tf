@@ -35,7 +35,7 @@ variable "purpose" {
   type        = string
   default     = "PRIVATE"
   validation {
-    condition     = contains(["PRIVATE", "INTERNAL_HTTPS_LOAD_BALANCER", "PRIVATE_SERVICE_CONNECT"], var.purpose)
+    condition     = contains(["PRIVATE", "INTERNAL_HTTPS_LOAD_BALANCER", "REGIONAL_MANAGED_PROXY", "PRIVATE_SERVICE_CONNECT"], var.purpose)
     error_message = "Invalid purpose; must be PRIVATE or INTERNAL_HTTPS_LOAD_BALANCER or PRIVATE_SERVICE_CONNECT."
   }
 }
