@@ -1,29 +1,21 @@
 output "id" {
-  description = "ID for this Network Endpoint Group"
-  value = local.create_neg ? one(concat(
-    google_compute_global_network_endpoint_group.default.*.id,
-    google_compute_region_network_endpoint_group.default.*.id,
+  value = local.create ? one(concat(
+    local.is_cloud_function && local.version == 2 ? google_cloudfunctions2_function.default.*.id : [],
+    local.is_cloud_function && local.version == 1 ? google_cloudfunctions_function.default.*.id : [],
+    local.is_cloud_run ? google_cloud_run_service.default.*.id : [],
+    local.is_app_engine ? google_app_engine_application.default.*.id : []
   )) : null
 }
 output "name" {
-  description = "Name for this Network Endpoint Group"
-  value = local.create_neg ? one(concat(
-    google_compute_global_network_endpoint_group.default.*.name,
-    google_compute_region_network_endpoint_group.default.*.name,
+  value = local.create ? one(concat(
+    local.is_cloud_function && local.version == 2 ? google_cloudfunctions2_function.default.*.name : [],
+    local.is_cloud_function && local.version == 1 ? google_cloudfunctions_function.default.*.name : [],
+    local.is_cloud_run ? google_cloud_run_service.default.*.name : [],
+    local.is_app_engine ? google_app_engine_application.default.*.name : []
   )) : null
 }
-output "self_link" {
-  description = "Self Link for this Network Endpoint Group"
-  value = local.create_neg ? one(concat(
-    google_compute_global_network_endpoint_group.default.*.self_link,
-    google_compute_region_network_endpoint_group.default.*.self_link,
-  )) : null
-}
-output "is_global" { value = local.is_global }
-output "is_regional" { value = local.is_regional }
-output "region" { value = local.is_regional ? var.region : null }
-output "is_ineg" { value = local.is_ineg }
-output "is_sneg" { value = local.is_sneg }
-output "neg_type" { value = local.neg_type }
-output "port" { value = local.port }
-output "protocol" { value = local.protocol }
+output "is_cloud_function" { value = local.is_cloud_function }
+output "cloud_function_version" { value = local.is_cloud_function ? local.version : null }
+output "is_cloud_run" { value = local.is_cloud_run }
+output "is_cloud_app_engine" { value = local.is_app_engine }
+output "region" { value = local.create ? var.params.region : null }
