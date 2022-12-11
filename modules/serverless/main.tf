@@ -5,7 +5,9 @@ locals {
   description       = try(lower(var.description), null)
   is_cloud_function = false
   version           = local.is_cloud_function ? var.params.cloud_function_version : null
-  is_cloud_run      = var.params.image != null ? true : false
+  is_cloud_run      = local.image != null ? true : false
+  image             = coalesce(var.params.image, "marketplace.gcr.io/google/nginx1")
+  container_ports   = var.params.image == null ? [80] : var.params.container_ports
   is_app_engine     = false
   location          = lower(var.params.region)
   timeout           = var.params.timeout
@@ -65,11 +67,11 @@ resource "google_cloud_run_service" "default" {
   template {
     spec {
       containers {
-        image = var.params.image
+        image = local.image
         ports {
           name = "http1"
           #protocol       = "TCP"
-          container_port = var.params.container_ports[0]
+          container_port = local.container_ports[0]
         }
       }
     }

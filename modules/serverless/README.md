@@ -4,3 +4,6 @@
 - Cloud Run
 - App Engine
 
+## Default Behavior
+
+Creates an Cloud Run instance in us-central1 running an Nginx container
