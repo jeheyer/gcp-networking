@@ -27,3 +27,4 @@ output "is_sneg" { value = local.is_sneg }
 output "neg_type" { value = local.neg_type }
 output "port" { value = local.port }
 output "protocol" { value = local.protocol }
+output "target" { value = local.is_ineg ? local.ineg_target : null }

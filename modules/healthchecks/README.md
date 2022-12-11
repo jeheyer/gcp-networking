@@ -7,3 +7,6 @@
 - HTTP
 - HTTPS
 
+## Default behavior
+
+Creates a randomly named global TCP healthcheck on port 80 

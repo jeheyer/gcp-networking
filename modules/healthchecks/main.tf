@@ -1,13 +1,21 @@
 locals {
-  create_hc   = coalesce(var.create, true) && local.is_global || local.is_regional || local.is_legacy
-  name        = lower(coalesce(var.name, "${local.protocol}-${var.params.port}"))
-  description = try(lower(var.description), null)
-  is_regional = var.params.regional ? true : false
-  is_global   = !var.params.regional ? true : false
-  is_legacy   = var.params.legacy == true ? true : false
-  protocol    = upper(var.params.protocol)
-  is_http     = local.protocol == "HTTP" ? true : false
-  is_https    = local.protocol == "HTTPS" ? true : false
+  create_hc       = coalesce(var.create, true) && local.is_global || local.is_regional || local.is_legacy
+  name            = local.use_random_name ? try(lower(one(random_string.name).result), null) : lower(var.name)
+  use_random_name = var.name == null ? true : false
+  description     = try(lower(var.description), null)
+  is_regional     = var.params.regional ? true : false
+  is_global       = !var.params.regional ? true : false
+  is_legacy       = var.params.legacy == true ? true : false
+  protocol        = upper(var.params.protocol)
+  is_http         = local.protocol == "HTTP" ? true : false
+  is_https        = local.protocol == "HTTPS" ? true : false
+}
+
+# Generate a random name, if required
+resource "random_string" "name" {
+  count   = local.use_random_name ? 1 : 0
+  length  = 31
+  special = false
 }
 
 # Global Health Checks

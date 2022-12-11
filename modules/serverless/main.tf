@@ -20,17 +20,17 @@ resource "random_string" "name" {
 
 # Cloud Function v1
 resource "google_cloudfunctions_function" "default" {
-  count                 = local.create && local.is_cloud_function && local.version == 1 ? 1 : 0
-  name                  = local.name
-  description           = local.description
-  region                = var.params.region
-  runtime               = var.params.runtime
-  available_memory_mb   = var.params.available_memory
-  trigger_http          = var.params.trigger_http
-  entry_point           = var.params.entry_point
-  environment_variables = var.params.environment_variables
-  timeout               = local.timeout
-  project               = var.project_id
+  count               = local.create && local.is_cloud_function && local.version == 1 ? 1 : 0
+  name                = local.name
+  description         = local.description
+  region              = var.params.region
+  runtime             = var.params.runtime
+  available_memory_mb = var.params.available_memory
+  trigger_http        = var.params.trigger_http
+  entry_point         = var.params.entry_point
+  #environment_variables = var.params.environment_variables
+  timeout = local.timeout
+  project = var.project_id
 }
 
 # Cloud Function v2
