@@ -19,3 +19,4 @@ output "cloud_function_version" { value = local.is_cloud_function ? local.versio
 output "is_cloud_run" { value = local.is_cloud_run }
 output "is_cloud_app_engine" { value = local.is_app_engine }
 output "region" { value = local.create ? var.params.region : null }
+output "status" { value = local.is_cloud_run ? one(google_cloud_run_service.default).status : null }
