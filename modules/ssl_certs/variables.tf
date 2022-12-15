@@ -20,15 +20,20 @@ variable "create" {
 variable "params" {
   description = "Parameters for this SSL Certificate & Key"
   type = object({
-    domains                 = optional(list(string))
-    certificate             = optional(string)
-    private_key             = optional(string)
-    regional                = optional(bool, false)
-    region                  = optional(string)
-    self_signed             = optional(bool)
-    self_signed_valid_hours = optional(number)
-    self_signed_valid_days  = optional(number)
-    self_signed_valid_years = optional(number, 10)
+    domains     = optional(list(string))
+    certificate = optional(string)
+    private_key = optional(string)
+    regional    = optional(bool, false)
+    region      = optional(string)
+    key = optional(object({
+      algo   = optional(string, "RSA")
+      length = optional(number, 2048)
+    }))
+    self_signed = optional(object({
+      valid_hours = optional(number, 87600)
+      valid_days  = optional(number, 3650)
+      valid_years = optional(number, 10)
+    }))
   })
   default = {}
 }
