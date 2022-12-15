@@ -24,7 +24,7 @@ params = {
 }
 ```
 
-### Global HTTP Healtcheck on nonstandard port at nonstandard interval
+### Global HTTP Healthcheck on nonstandard port at nonstandard interval
 
 ```
 project_id = "myproject-123456"
@@ -36,7 +36,7 @@ params = {
 }
 ```
 
-### Global HTTP Healtcheck with custom request / response
+### Global HTTP Healthcheck with custom request / response
 
 ```
 project_id = "myproject-123456"

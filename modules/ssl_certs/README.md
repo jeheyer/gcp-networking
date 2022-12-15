@@ -12,15 +12,18 @@
 
 ### Self-Signed Certificate for myspace.com
 
+```
 project_id = "myproject-123456"
 params = {
   self_signed = {
     cert_domain = "myspace.com"
   }
 }
+```
 
 ### Regional Self-Signed Certificate for myspace.com
 
+```
 project_id = "myproject-123456"
 params = {
   regional = true
@@ -29,4 +32,4 @@ params = {
     cert_domain = "myspace.com"
   }
 }
-
+```
