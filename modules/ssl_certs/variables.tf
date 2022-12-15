@@ -33,6 +33,8 @@ variable "params" {
       valid_hours = optional(number, 87600)
       valid_days  = optional(number, 3650)
       valid_years = optional(number, 10)
+      cert_domain = optional(string, "localhost-localdomain")
+      cert_org    = optional(string)
     }))
   })
   default = {}
