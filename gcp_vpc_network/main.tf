@@ -394,27 +394,28 @@ module "instance_external_ips" {
 
 # Instances
 module "instances" {
-  source                = "../resources/google_compute_instance"
-  for_each              = var.instances
-  project_id            = var.project_id
-  name                  = each.key
-  description           = each.value.description
-  vpc_network_name      = var.vpc_network_name
-  region                = each.value.region
-  num_instances         = each.value.num_instances
-  machine_type          = each.value.machine_type
-  boot_disk_type        = each.value.boot_disk_type
-  boot_disk_size        = each.value.boot_disk_size
-  image                 = each.value.image
-  os_project            = each.value.os_project
-  os                    = each.value.os
-  subnet_name           = each.value.subnet_name
-  service_account_email = each.value.service_account_email
-  network_tags          = each.value.network_tags
-  startup_script        = each.value.startup_script
-  ssh_key               = each.value.ssh_key
-  enable_ip_forwarding  = each.value.enable_ip_forwarding
-  nat_ips               = each.value.nat_ip_names == null ? [] : module.instance_external_ips[each.key].addresses
+  source                 = "../resources/google_compute_instance"
+  for_each               = var.instances
+  project_id             = var.project_id
+  name                   = each.key
+  description            = each.value.description
+  vpc_network_name       = var.vpc_network_name
+  region                 = each.value.region
+  num_instances          = each.value.num_instances
+  machine_type           = each.value.machine_type
+  boot_disk_type         = each.value.boot_disk_type
+  boot_disk_size         = each.value.boot_disk_size
+  image                  = each.value.image
+  os_project             = each.value.os_project
+  os                     = each.value.os
+  subnet_name            = each.value.subnet_name
+  service_account_email  = each.value.service_account_email
+  service_account_scopes = each.value.service_account_scopes
+  network_tags           = each.value.network_tags
+  startup_script         = each.value.startup_script
+  ssh_key                = each.value.ssh_key
+  enable_ip_forwarding   = each.value.enable_ip_forwarding
+  nat_ips                = each.value.nat_ip_names == null ? [] : module.instance_external_ips[each.key].addresses
 }
 
 # Create Unmanaged instance groups for load balanced instances
