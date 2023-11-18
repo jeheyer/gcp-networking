@@ -4,6 +4,7 @@ from asyncio import run, gather, create_task
 from aiohttp import ClientSession
 from google.auth import default
 from google.auth.transport.requests import Request
+from re import match
 import csv
 
 CSV_FILE = 'gcp_ip_addresses.csv'
@@ -15,8 +16,16 @@ async def make_gcp_call(call: str, access_token: str, api_name: str) -> list:
 
     call = call[1:] if call.startswith("/") else call
     url = f"https://{api_name}.googleapis.com/{call}"
-    key = 'items' if api_name in ['compute', 'sqladmin'] else url.split("/")[-1]
+    if api_name in ['compute', 'sqladmin']:
+        if 'aggregated' in call or 'global' in call:
+            key = 'items'
+        else:
+            key = 'result' #bool(match(r'aggregated|global', call)) else 'result'
+        #print(api_name, call, key)
+    else:
+        key = url.split("/")[-1]
 
+    #print(url)
     try:
         headers = {'Authorization': f"Bearer {access_token}"}
         params = {}
@@ -26,11 +35,13 @@ async def make_gcp_call(call: str, access_token: str, api_name: str) -> list:
                     if int(response.status) == 200:
                         json = await response.json()
                         if 'aggregated/' in url:
-                            items = json.get(key, {})
-                            for k, v in items.items():
-                                results.extend(v.get(url.split("/")[-1], []))
+                            if key == 'items':
+                                items = json.get(key, {})
+                                for k, v in items.items():
+                                     results.extend(v.get(url.split("/")[-1], []))
                         else:
-                            results.extend(json.get(key, []))
+                            #print(key)
+                            results.append(json.get(key)) if key == 'result' else results.extend(json.get(key, []))
                         if page_token := json.get('nextPageToken'):
                             params.update({'pageToken': page_token})
                         else:
@@ -138,6 +149,8 @@ async def get_cloudsql_instances(project_id: str, access_token: str) -> list:
 
     results = []
     for item in items:
+        if not item:
+            break
         network_project_id = "unknown"
         network_name = "unknown"
         if ip_configuration := item['settings'].get('ipConfiguration'):
@@ -194,6 +207,52 @@ async def get_gke_endpoints(project_id: str, access_token: str) -> list:
             })
     return results
 
+async def get_cloud_nats(project_id: str, access_token: str) -> list:
+
+    try:
+        api_name = "compute"
+        call = f"/compute/v1/projects/{project_id}/aggregated/routers"
+        routers = await make_gcp_call(call, access_token, api_name)
+    except:
+        return []
+
+    cloud_nats = []
+    for router in routers:
+        if len(router.get('nats', [])) > 0:
+            cloud_nats.append({
+                'router_name': router['name'],
+                'network_name': router.get('network', '/unknown').split('/')[-1],
+                'region': router.get('region', "unknown-0").split('/')[-1],
+            })
+
+    results = []
+    for cloud_nat in cloud_nats:
+        router_name = cloud_nat['router_name']
+        region = cloud_nat['region']
+        try:
+            api_name = "compute"
+            call = f"/compute/v1/projects/{project_id}/regions/{region}/routers/{router_name}/getRouterStatus"
+            router_statuses = await make_gcp_call(call, access_token, api_name)
+            #print(router_statuses)
+        except:
+            continue
+        for router_status in router_statuses:
+            if nat_statuses := router_status.get('natStatus'):
+                for nat_status in nat_statuses:
+                    nat_ips = []
+                    nat_ips.extend(nat_status.get('autoAllocatedNatIps', []))
+                    nat_ips.extend(nat_status.get('userAllocatedNatIps', []))
+                    for nat_ip in nat_ips:
+                        results.append({
+                            'ip_address': nat_ip,
+                            'type': "Cloud NAT",
+                            'name': nat_status.get('name', router_name),
+                            'project_id': project_id,
+                            'network_id': f"{project_id}/{cloud_nat['network_name']}",
+                            'region': region,
+                       })
+    return results
+
 
 async def main():
 
@@ -210,6 +269,7 @@ async def main():
     for project_id in project_ids:
         tasks.append(create_task(get_instance_nics(project_id, access_token)))
         tasks.append(create_task(get_fwd_rules(project_id, access_token)))
+        tasks.append(create_task(get_cloud_nats(project_id, access_token)))
         tasks.append(create_task(get_cloudsql_instances(project_id, access_token)))
         tasks.append(create_task(get_gke_endpoints(project_id, access_token)))
 
@@ -223,9 +283,6 @@ if __name__ == "__main__":
 
     _ = run(main())
     data = sorted(_, key=lambda x: x['ip_address'], reverse=False)
-
-    #print(ip_addresses)
-
     csvfile = open(CSV_FILE, 'w', newline='')
     writer = csv.writer(csvfile)
     writer.writerow(data[0].keys())
