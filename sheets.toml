@@ -1,7 +1,0 @@
-[vpc_networks]
-description = "VPC Networks"
-call = "global/networks"
-
-[subnetworks]
-description = "Subnetworks"
-call = "aggregated/subnetworks"

@@ -1,0 +1,72 @@
+[vpc_network]
+description = "VPC Networks"
+call = "global/networks"
+
+[subnetwork]
+description = "Subnetworks"
+call = "aggregated/subnetworks"
+
+[firewall_rule]
+description = "Firewall Rules"
+call = "global/firewalls"
+
+[instance]
+description = "Instances"
+call = "aggregated/instances"
+
+[instance_group]
+description = "Instance Groups"
+call = "aggregated/instanceGroups"
+
+[instance_group_manager]
+description = "Instance Group Managers"
+call = "aggregated/instanceGroupManagers"
+
+[instance_template]
+description = "Instance Templates"
+call = "aggregated/instanceTemplates"
+
+[forwarding_rule]
+description = "Regional Forwarding Rules"
+call = "aggregated/forwardingRules"
+
+[global_forwarding_rule]
+description = "Global Forwarding Rules"
+call = "global/forwardingRules"
+
+[healthcheck]
+description = "Health Checks"
+call = "aggregated/healthChecks"
+
+[cloud_router]
+description = "Cloud Routers"
+call = "aggregated/routers"
+
+[static_route]
+description = "Static Routes"
+call = "global/routes"
+
+[ssl_certificate]
+description = "SSL Certificates"
+call = "aggregated/sslCertificates"
+
+[security_policy]
+description = "Cloud Armor Policy"
+call = "aggregated/securityPolicies"
+
+[ssl_policy]
+description = "SSL Policies"
+call = "aggregated/sslPolicies"
+
+[vpn_tunnel]
+description = "VPN Tunnels"
+call = "aggregated/vpnTunnels"
+
+[cloud_vpn_gateway]
+description = "Cloud VPN Gateways"
+call = "aggregated/vpnGateways"
+
+[peer_vpn_gateway]
+description = "Peer VPN Gateways"
+call = "global/externalVpnGateways"
+

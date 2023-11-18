@@ -1,68 +1,10 @@
 #!/usr/bin/env python3 
 
+from gcp_operations import make_gcp_call
 from asyncio import run, gather, create_task
-from aiohttp import ClientSession
-from google.auth import default
-from google.auth.transport.requests import Request
-from re import match
 import csv
 
 CSV_FILE = 'gcp_ip_addresses.csv'
-
-
-async def make_gcp_call(call: str, access_token: str, api_name: str) -> list:
-
-    results = []
-
-    call = call[1:] if call.startswith("/") else call
-    url = f"https://{api_name}.googleapis.com/{call}"
-    if api_name in ['compute', 'sqladmin']:
-        if 'aggregated' in call or 'global' in call:
-            key = 'items'
-        else:
-            key = 'result' #bool(match(r'aggregated|global', call)) else 'result'
-        #print(api_name, call, key)
-    else:
-        key = url.split("/")[-1]
-
-    #print(url)
-    try:
-        headers = {'Authorization': f"Bearer {access_token}"}
-        params = {}
-        async with ClientSession(raise_for_status=True) as session:
-            while True:
-                async with session.get(url, headers=headers, params=params) as response:
-                    if int(response.status) == 200:
-                        json = await response.json()
-                        if 'aggregated/' in url:
-                            if key == 'items':
-                                items = json.get(key, {})
-                                for k, v in items.items():
-                                     results.extend(v.get(url.split("/")[-1], []))
-                        else:
-                            #print(key)
-                            results.append(json.get(key)) if key == 'result' else results.extend(json.get(key, []))
-                        if page_token := json.get('nextPageToken'):
-                            params.update({'pageToken': page_token})
-                        else:
-                            break
-                    else:
-                        raise response
-        return results
-    except Exception as e:
-        await session.close()
-        return []
-
-
-async def get_project_ids(access_token: str) -> list:
-
-    try:
-        api_name = "cloudresourcemanager"
-        call = "/v1/projects"
-        projects = await make_gcp_call(call, access_token, api_name)
-        return [p['projectId'] for p in projects]
-    except Exception as e:
-        raise e
 
 
 async def get_instance_nics(project_id: str, access_token: str) -> list:
