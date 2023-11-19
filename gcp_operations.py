@@ -95,9 +95,11 @@ async def get_projects(access_token: str) -> list:
         _ = sorted(_, key=lambda x: x.get('name'), reverse=False)
         for project in _:
             projects.append({
-                'name': project['name'],
-                'id': project['projectId'],
-                'number': project['projectNumber'],
+                'name': project.get('name', "UNKNOWN"),
+                'id': project.get('projectId', "UNKNOWN"),
+                'number': project.get('projectNumber', "UNKNOWN"),
+                'created': project.get('createTime', "UNKNOWN"),
+                'state': project.get('lifecycleState', "UNKNOWN"),
             })
 
     except Exception as e:

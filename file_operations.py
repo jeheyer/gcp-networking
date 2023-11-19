@@ -2,12 +2,11 @@ import json
 import yaml
 import tomli
 import tomli_w
-import toml
+import csv
 import os
 import pathlib
 import platform
 import openpyxl
-import pprint
 
 
 def get_home_dir() -> str:
@@ -34,7 +33,7 @@ async def write_to_excel(sheets: dict, file_name: str = "gcp_network_data.xlsx",
     for k, v in sheets.items():
 
         # Create worksheet
-        sheet_name = v.get('sescription', k)
+        sheet_name = v.get('description', k)
         ws = wb.create_sheet(sheet_name)
         data = v.get('data', [])
 
@@ -89,17 +88,25 @@ async def write_data_file(file_name: str, file_contents: list = [], file_format:
     if not os.path.exists(sub_dir):
         os.makedirs(sub_dir)
 
-    with open(file_name, 'w') as f:
-        match file_format:
-            case 'json':
-                _ = json.dumps(file_contents)
-            case 'yaml':
-                _ = yaml.dump(file_contents)
-            case 'toml':
-                _ = tomli_w.dumps({'items': file_contents})
-            case other:
-                _ = json.dumps(file_contents)
-        f.write(_)
+    match file_format:
+        case 'json':
+            _ = json.dumps(file_contents)
+        case 'yaml':
+            _ = yaml.dump(file_contents)
+        case 'toml':
+            _ = tomli_w.dumps({'items': file_contents})
+        case 'csv':
+            csvfile = open(file_name, 'w', newline='')
+            writer = csv.writer(csvfile)
+            writer.writerow(file_contents[0].keys())
+            [writer.writerow(row.values()) for row in file_contents]
+            csvfile.close()
+            return
+        case other:
+            raise f"unhandled file format '{file_format}'"
+    if file_format != 'csv':
+        with open(file_name, mode="w") as fp:
+            fp.write(_)
 
 
 def write_to_bucket(bucket_name: str, file_name: str, data: str = ""):
