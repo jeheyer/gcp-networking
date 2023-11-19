@@ -1,72 +1,74 @@
 [vpc_network]
 description = "VPC Networks"
-call = "global/networks"
+calls = ["global/networks"]
+parse_function = "parse_networks"
 
 [subnetwork]
 description = "Subnetworks"
-call = "aggregated/subnetworks"
+calls = ["aggregated/subnetworks"]
+parse_function = "parse_subnets"
 
 [firewall_rule]
 description = "Firewall Rules"
-call = "global/firewalls"
+calls = ["global/firewalls"]
+parse_function = "parse_firewall_rules"
 
-[instance]
-description = "Instances"
-call = "aggregated/instances"
+[instance_nics]
+description = "Instance NICs"
+calls = ["aggregated/instances"]
+parse_function = "parse_instance_nics"
 
 [instance_group]
 description = "Instance Groups"
-call = "aggregated/instanceGroups"
+calls = ["aggregated/instanceGroups"]
 
 [instance_group_manager]
 description = "Instance Group Managers"
-call = "aggregated/instanceGroupManagers"
+calls = ["aggregated/instanceGroupManagers"]
 
 [instance_template]
 description = "Instance Templates"
-call = "aggregated/instanceTemplates"
+calls = ["aggregated/instanceTemplates"]
 
 [forwarding_rule]
-description = "Regional Forwarding Rules"
-call = "aggregated/forwardingRules"
-
-[global_forwarding_rule]
-description = "Global Forwarding Rules"
-call = "global/forwardingRules"
+description = "Forwarding Rules"
+calls = ["aggregated/forwardingRules", "global/forwardingRules"]
+parse_function = "parse_forwarding_rules"
 
 [healthcheck]
 description = "Health Checks"
-call = "aggregated/healthChecks"
+calls = ["aggregated/healthChecks"]
 
 [cloud_router]
 description = "Cloud Routers"
-call = "aggregated/routers"
+calls = ["aggregated/routers"]
 
-[static_route]
-description = "Static Routes"
-call = "global/routes"
+[route]
+description = "Routes"
+calls = ["global/routes"]
 
 [ssl_certificate]
 description = "SSL Certificates"
-call = "aggregated/sslCertificates"
+calls = ["aggregated/sslCertificates"]
 
 [security_policy]
 description = "Cloud Armor Policy"
-call = "aggregated/securityPolicies"
+calls = ["aggregated/securityPolicies"]
 
 [ssl_policy]
 description = "SSL Policies"
-call = "aggregated/sslPolicies"
+calls = ["aggregated/sslPolicies"]
 
 [vpn_tunnel]
 description = "VPN Tunnels"
-call = "aggregated/vpnTunnels"
+calls = ["aggregated/vpnTunnels"]
 
 [cloud_vpn_gateway]
 description = "Cloud VPN Gateways"
-call = "aggregated/vpnGateways"
+calls = ["aggregated/vpnGateways"]
+parse_function = "parse_cloud_vpn_gateways"
 
 [peer_vpn_gateway]
 description = "Peer VPN Gateways"
-call = "global/externalVpnGateways"
-
+calls = ["global/externalVpnGateways"]
+parse_function = "parse_peer_vpn_gateways"

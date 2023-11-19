@@ -51,12 +51,12 @@ async def write_to_excel(sheets: dict, file_name: str = "gcp_network_data.xlsx",
 
         # Write out rows of data
         for row_num in range(len(data)):
-            row = list(data[row_num].values())
-            ws.append(row)
+            row_data = [str(value) for value in data[row_num].values()]
+            ws.append(list(row_data))
 
             # Keep track of the largest value for each column
-            for column_index, entry in enumerate(row):
-                column_width = len(str(entry)) if entry else 0
+            for column_index, entry in enumerate(row_data):
+                column_width = len(str(entry)) + 1 if entry else 1
                 if column_index in column_widths:
                     if column_width > column_widths[column_index]:
                         column_widths[column_index] = column_width

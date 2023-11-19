@@ -19,56 +19,30 @@ async def main():
     # Add the other sheets
     calls = await read_data_file('calls.toml')
     for k, v in calls.items():
-        sheets.update({k: {'description': v.get('description'), 'data': []}})
+        new_sheet = {k: {'description': v.get('description'), 'data': []}}
+        sheets.update(new_sheet)
 
     project_ids = await get_project_ids(access_token, projects)
     for k, v in calls.items():
         tasks = []
         # For each project ID, get network data
         for project_id in project_ids:
-            call = f"/compute/v1/projects/{project_id}/{v.get('call')}"
-            print(call)
-            tasks.append(make_gcp_call(call, access_token, api_name='compute'))
-            #print(short_name, project_id)
+            if v.get('parse_function'):
+                if calls := v.get('calls'):
+                    for call in calls:
+                        url = f"/compute/v1/projects/{project_id}/{call}"
+                        tasks.append(make_gcp_call(url, access_token, api_name='compute'))
         _ = await gather(*tasks)
-        #pprint.pprint(_)
-        #quit()
+
         data = []
-        for items in _:
-            for item in items:
-                #print(item)
-                #quit()
-                row = {
-                    'name': item.get('name'),
-                    'project_id': item.get('network'),
-                    'region': item.get('region'),
-                }
-                data.append(row)
-        #network_data = [row if len(row) > 0 else None for row in _]
-        #network_data[short_name]
-        #print(network_data[short_name])
-        #if  != 'projects':
-        sheets.update({k: {'data': data}})
-    #for k, v in network_data.items():
-    #    print(k, v[0] if len(v) > 0 else None)
-    #quit()
-    #for short_name in CALLS.items():
-    #    sheets.update({f"{short_name}s": network_data[short_name]}) = dict(zip(SHEETS, network_data))
-
-    #for k, v in network_data.items():
-    #    print(k, v[0] if len(v) > 0 else None)
-    #quit()
-    for k, v in sheets.items():
-        print(k, v)
-
-    sheet_data = {}
-    for k, v in sheets.items():
-        sheet_description = v.get('description', "Uknown")
-        sheet_data = v.get('data', [])
+        for results in _:
+            parse_function = v.get('parse_function')
+            items = parse_results(results, parse_function)
+            data.extend(items)
+        new_sheet = {k: {'description': v.get('description'), 'data': data}}
+        sheets.update(new_sheet)
 
     _ = await write_to_excel(sheets)
-    #print(_.items())
-
 
 if __name__ == "__main__":
 
