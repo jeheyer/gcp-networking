@@ -1,6 +1,6 @@
 #!/usr/bin/env python3 
 
-from gcp_operations import make_gcp_call
+from gcp_operations import get_adc_token, get_project_ids, make_gcp_call
 from asyncio import run, gather, create_task
 import csv
 
@@ -12,7 +12,8 @@ async def get_instance_nics(project_id: str, access_token: str) -> list:
     try:
         api_name = "compute"
         call = f"/compute/v1/projects/{project_id}/aggregated/instances"
-        items = await make_gcp_call(call, access_token, api_name)
+        _ = await make_gcp_call(call, access_token, api_name)
+        items = _.get('items')
     except:
         return []
 
@@ -57,7 +58,8 @@ async def get_fwd_rules(project_id: str, access_token: str) -> list:
         ]
         items = []
         for call in calls:
-            items.extend(await make_gcp_call(call, access_token, api_name))
+            _ = await make_gcp_call(call, access_token, api_name)
+            items.extend(_.get('items'))
     except:
         return []
 
@@ -85,7 +87,8 @@ async def get_cloudsql_instances(project_id: str, access_token: str) -> list:
     try:
         api_name = "sqladmin"
         call = f"/v1/projects/{project_id}/instances"
-        items = await make_gcp_call(call, access_token, api_name)
+        _ = await make_gcp_call(call, access_token, api_name)
+        items = _.get('items')
     except:
         return []
 
@@ -116,7 +119,8 @@ async def get_gke_endpoints(project_id: str, access_token: str) -> list:
     try:
         api_name = "container"
         call = f"/v1/projects/{project_id}/locations/-/clusters"
-        clusters = await make_gcp_call(call, access_token, api_name)
+        _ = await make_gcp_call(call, access_token, api_name)
+        clusters = _.get('items')
     except:
         return []
 
@@ -149,12 +153,14 @@ async def get_gke_endpoints(project_id: str, access_token: str) -> list:
             })
     return results
 
+
 async def get_cloud_nats(project_id: str, access_token: str) -> list:
 
     try:
         api_name = "compute"
         call = f"/compute/v1/projects/{project_id}/aggregated/routers"
-        routers = await make_gcp_call(call, access_token, api_name)
+        _ = await make_gcp_call(call, access_token, api_name)
+        routers = _.get('items')
     except:
         return []
 
@@ -174,7 +180,8 @@ async def get_cloud_nats(project_id: str, access_token: str) -> list:
         try:
             api_name = "compute"
             call = f"/compute/v1/projects/{project_id}/regions/{region}/routers/{router_name}/getRouterStatus"
-            router_statuses = await make_gcp_call(call, access_token, api_name)
+            _ = await make_gcp_call(call, access_token, api_name)
+            router_statuses = _.get('items')
             #print(router_statuses)
         except:
             continue
@@ -199,13 +206,12 @@ async def get_cloud_nats(project_id: str, access_token: str) -> list:
 async def main():
 
     try:
-        scopes = ['https://www.googleapis.com/auth/cloud-platform']
-        credentials, project_id = default(scopes=scopes, quota_project_id=None)
-        credentials.refresh(Request())
-        access_token = credentials.token
+        access_token = get_adc_token()
         project_ids = await get_project_ids(access_token)
     except Exception as e:
         quit(e)
+
+    print("Gathering IP addresses across", len(project_ids), "projects...")
 
     tasks = []
     for project_id in project_ids:

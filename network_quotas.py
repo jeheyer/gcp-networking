@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from asyncio import run, gather
+from collections import Counter
 from file_operations import read_data_file, write_data_file, write_to_excel
 from gcp_operations import get_adc_token, get_projects, get_project_ids, make_gcp_call, parse_results
 
@@ -16,6 +17,7 @@ async def main():
         'projects': {'description': "Project Counts"},
         'networks': {'description': "Network Counts"},
         'subnets': {'description': "Subnet Counts"},
+        'cloud_nats': {'description': "Cloud NAT Counts"},
     }
 
     project_ids = await get_project_ids(access_token)
@@ -44,14 +46,34 @@ async def main():
         raw_data.update({k: items})
 
     forwarding_rules = []
-    for forwarding_rule in raw_data['forwarding_rules']:
+    for forwarding_rule in raw_data.pop('forwarding_rules'):
         if subnetwork := forwarding_rule.get('subnetwork'):
             subnetwork = subnetwork.replace('https://www.googleapis.com/compute/v1/', "")
             forwarding_rule.update({'subnetwork': subnetwork})
         forwarding_rules.append(forwarding_rule)
 
+    routers = []
+    for router in raw_data.pop('routers'):
+        self_link = router['selfLink']
+        routers.append({
+            'project_id': self_link.split('/')[-5],
+            'name': router['name'],
+            'region': self_link.split('/')[-3],
+            'network': router['network'],
+        })
+
+    firewalls = []
+    for firewall in raw_data.pop('firewalls'):
+        print(firewall)
+        self_link = firewall['selfLink']
+        firewalls.append({
+            'project_id': self_link.split('/')[-4],
+            'name': firewall['name'],
+            'network': firewall['network'],
+        })
+
     instance_nics = []
-    for instance in raw_data['instances']:
+    for instance in raw_data.pop('instances'):
         for nic in instance.get('networkInterfaces', []):
             if network := nic.get('network'):
                 network = network.replace('https://www.googleapis.com/compute/v1/', "")
@@ -60,16 +82,19 @@ async def main():
                 instance_nics.append({
                     'name': instance['name'] + "-" + nic['name'],
                     'network': network,
+                    'region': subnetwork.split('/')[-3],
                     'subnetwork': subnetwork,
+                    'zone': instance.get('zone'),
                 })
 
     networks = []
     subnets = []
-    for network in raw_data['networks']:
+    for network in raw_data.pop('networks'):
         self_link = network['selfLink']
         network_name = self_link.split("/")[-1]
         network_project_id = self_link.split("/")[-4]
         network_id = f"projects/{network_project_id}/global/networks/{network_name}"
+
         subnetworks = network.get('subnetworks', [])
         for subnetwork in subnetworks:
             subnets.append({
@@ -86,7 +111,8 @@ async def main():
         }
         networks.append({
             'project_id': network_project_id,
-            'network_name': network_name,
+            'name': network_name,
+            'network': network_id,
             'num_subnets': len(subnetworks),
             'num_peerings': len(counts['peerings']),
             'num_instances': len(counts['instances']),
@@ -113,9 +139,9 @@ async def main():
     projects = []
     for project_id in project_ids:
         counts = {
-            'networks': [_ for _ in raw_data['networks'] if _['selfLink'].split('/')[-4] == project_id],
-            'firewalls': [_ for _ in raw_data['firewalls'] if _['network'].split('/')[-4] == project_id],
-            'routers': [_ for _ in raw_data['routers'] if _['network'].split('/')[-4] == project_id],
+            'networks': [_ for _ in networks if _['project_id'] == project_id],
+            'firewalls': [_ for _ in firewalls if _['project_id'] == project_id],
+            'routers': [_ for _ in routers if _['project_id'] == project_id],
         }
         projects.append({
             'project_id': project_id,
@@ -124,6 +150,18 @@ async def main():
             'num_routers': len(counts['routers']),
         })
     sheets['projects']['data'] = projects
+
+    cloud_nats = []
+    for network in networks:
+        _ = Counter([nic['region'] for nic in instance_nics if nic['network'] == network['network']])
+        for region, instance_count in _.items():
+            cloud_nats.append({
+                'network_project_id': network['project_id'],
+                'network_name': network['name'],
+                'region': region,
+                'num_instances': instance_count,
+            })
+    sheets['cloud_nats']['data'] = cloud_nats
 
     # Create and save the Excel workbook
     _ = await write_to_excel(sheets, "network_quotas.xlsx")
