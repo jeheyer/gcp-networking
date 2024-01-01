@@ -9,15 +9,13 @@ from aiohttp import ClientSession
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 
 
-async def get_adc_token():
+def get_adc_token():
 
     try:
-        scopes = ['https://www.googleapis.com/auth/cloud-platform']
-        credentials, project_id = google.auth.default(scopes=scopes, quota_project_id=None)
+        credentials, project_id = google.auth.default(scopes=SCOPES, quota_project_id=None)
         _ = google.auth.transport.requests.Request()
         credentials.refresh(_)
-        access_token = credentials.token
-        return access_token
+        return credentials.token
     except Exception as e:
         raise e
 
@@ -54,12 +52,10 @@ async def make_gcp_call(call: str, access_token: str, api_name: str) -> dict:
         if 'aggregated' in call or 'global' in call:
             key = 'items'
         else:
-            key = 'result' #bool(match(r'aggregated|global', call)) else 'result'
-        #print(api_name, call, key)
+            key = 'result'
     else:
         key = url.split("/")[-1]
 
-    #print(url)
     try:
         headers = {'Authorization': f"Bearer {access_token}"}
         params = {}
@@ -73,16 +69,15 @@ async def make_gcp_call(call: str, access_token: str, api_name: str) -> dict:
                             if key == 'items':
                                 items = json_data.get(key, {})
                                 for k, v in items.items():
-                                     results['items'].extend(v.get(url.split("/")[-1], []))
+                                    results['items'].extend(v.get(url.split("/")[-1], []))
                         else:
-                            #print(key)
                             if key == 'result':
                                 items = json_data.get(key)
                                 results['items'].append(items)
                             else:
                                 items = json_data.get(key, [])
                                 results['items'].extend(items)
-                        if page_token := json.get('nextPageToken'):
+                        if page_token := json_data.get('nextPageToken'):
                             params.update({'pageToken': page_token})
                         else:
                             break
@@ -118,8 +113,8 @@ async def get_projects(access_token: str) -> list:
 async def get_project_ids(access_token: str, projects: list = None) -> list:
 
     try:
-        _ = projects if projects else await get_projects(access_token)
-        return [project['id'] for project in _]
+        projects = projects if projects else await get_projects(access_token)
+        return [project['id'] for project in projects]
     except Exception as e:
         raise e
 
@@ -154,7 +149,7 @@ def parse_results(results: dict, parse_function: str) -> list:
         _ = {
             'project_id': project_id,
             'name': item.get('name'),
-            'description': item.get('description')[0:63] if 'description' in item else "",
+            'description': item.get('description')[0:31] if 'description' in item else "",
             'region': region,
         }
         if network := item.get('network'):
@@ -190,6 +185,10 @@ def parse_results(results: dict, parse_function: str) -> list:
             _ = parse_cloud_vpn_gateways(_, item)
         if parse_function == "parse_peer_vpn_gateways":
             _ = parse_peer_vpn_gateways(_, item)
+        if parse_function == "parse_vpn_tunnels":
+            _ = parse_vpn_tunnels(_, item)
+        if parse_function == "parse_cloud_routers":
+            _ = parse_cloud_routers(_, item)
 
         if type(_) is list:
             parsed_items.extend(_)
@@ -222,6 +221,7 @@ def parse_subnet(item: dict, raw_data: dict) -> list:
     item.update({
         'cidr_range': raw_data.get('ipCidrRange'),
     })
+    del item['subnet_id']
 
     return item
 
@@ -317,5 +317,32 @@ def parse_peer_vpn_gateways(item: dict, raw_data: dict) -> dict:
     del item['network_id']
     del item['subnet_id']
     del item['region']
+
+    return item
+
+
+def parse_vpn_tunnels(item: dict, raw_data: dict) -> dict:
+
+    item.update({
+        'vpn_gateway': raw_data['vpnGateway'].split('/')[-1] if 'vpnGateway' in raw_data else None,
+        'interface': raw_data.get('vpnGatewayInterface'),
+        'peer_gateway': raw_data['peerExternalGateway'].split('/')[-1] if 'peerExternalGateway' in raw_data else None,
+        'peer_ip': raw_data.get('peerIp'),
+        'ike_version': raw_data.get('ikeVersion', 0),
+        'status': raw_data.get('status'),
+        'detailed_status': raw_data.get('detailedStatus'),
+    })
+    del item['network_id']
+    del item['subnet_id']
+
+    return item
+
+
+def parse_cloud_routers(item: dict, raw_data: dict) -> dict:
+
+    item.update({
+        'interfaces': raw_data.get('interfaces', []),
+    })
+    del item['subnet_id']
 
     return item

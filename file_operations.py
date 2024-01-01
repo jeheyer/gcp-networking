@@ -75,35 +75,37 @@ async def read_data_file(file_name: str, file_format: str = "toml") -> dict:
         if path.is_file():
             with open(file_name, mode="rb") as fp:
                 fn = file_name.lower()
-                ff = file_name.upper()
+                ff = file_format.upper()
                 if fn.endswith('yaml') or fn.endswith('yml') or ff.startswith('yam'):
                     return yaml.load(fp, Loader=yaml.FullLoader)
                 else:
                     return tomli.load(fp)
 
 
-async def write_data_file(file_name: str, file_contents: list = [], file_format: str = "toml") -> dict:
+async def write_data_file(file_name: str, file_contents: list = [], file_format: str = None) -> dict:
 
     sub_dir = file_name.split('/')[0]
     if not os.path.exists(sub_dir):
         os.makedirs(sub_dir)
 
-    match file_format:
-        case 'json':
-            _ = json.dumps(file_contents)
-        case 'yaml':
-            _ = yaml.dump(file_contents)
-        case 'toml':
-            _ = tomli_w.dumps({'items': file_contents})
-        case 'csv':
-            csvfile = open(file_name, 'w', newline='')
-            writer = csv.writer(csvfile)
-            writer.writerow(file_contents[0].keys())
-            [writer.writerow(row.values()) for row in file_contents]
-            csvfile.close()
-            return
-        case other:
-            raise f"unhandled file format '{file_format}'"
+    if not file_format:
+        file_format = file_name.split('.')[-1].lower()
+
+    if file_format == 'yaml':
+        _ = yaml.dump(file_contents)
+    elif file_format == 'json':
+        _ = json.dumps(file_contents)
+    elif file_format == 'toml':
+        _ = tomli_w.dumps({'items': file_contents})
+    elif file_format == 'csv':
+        csvfile = open(file_name, 'w', newline='')
+        writer = csv.writer(csvfile)
+        writer.writerow(file_contents[0].keys())
+        [writer.writerow(row.values()) for row in file_contents]
+        csvfile.close()
+        return
+    else:
+        raise f"unhandled file format '{file_format}'"
     if file_format != 'csv':
         with open(file_name, mode="w") as fp:
             fp.write(_)

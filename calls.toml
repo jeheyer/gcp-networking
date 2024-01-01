@@ -62,6 +62,7 @@ calls = ["aggregated/sslPolicies"]
 [vpn_tunnel]
 description = "VPN Tunnels"
 calls = ["aggregated/vpnTunnels"]
+parse_function = "parse_vpn_tunnels"
 
 [cloud_vpn_gateway]
 description = "Cloud VPN Gateways"

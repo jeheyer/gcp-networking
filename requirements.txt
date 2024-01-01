@@ -2,4 +2,11 @@ google-auth
 aiohttp
 oauthlib
 pyyaml
+tomli
+tomli_w
 openpyxl
+requests
+gunicorn
+flask
+hypercorn
+quart
