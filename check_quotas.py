@@ -3,7 +3,8 @@
 from asyncio import run, gather
 from collections import Counter
 from file_operations import read_data_file, write_data_file, write_to_excel
-from gcp_operations import get_adc_token, get_projects, get_project_ids, make_gcp_call, parse_results
+from gcp_operations import get_projects, get_project_ids, make_gcp_call, parse_results
+from auth_operations import get_adc_token
 
 
 def sort_data(data: list, key: str, reverse: bool = True) -> list:
@@ -14,7 +15,7 @@ def sort_data(data: list, key: str, reverse: bool = True) -> list:
 async def main():
 
     try:
-        access_token = get_adc_token()
+        access_token = await get_adc_token()
     except Exception as e:
         quit(e)
 
@@ -36,6 +37,7 @@ async def main():
         'forwarding_rules': "aggregated/forwardingRules",
         'routers': "aggregated/routers",
     }
+
     raw_data = {}
     for k, call in calls.items():
         tasks = []
@@ -46,8 +48,8 @@ async def main():
         _ = await gather(*tasks)
         items = []
         for row in _:
-            if len(row['items']) > 0:
-                items.extend(row['items'])
+            if len(row) > 0:
+                items.extend(row)
         raw_data.update({k: items})
 
     subnetworks = []
@@ -78,7 +80,6 @@ async def main():
     routers = []
     for router in raw_data.pop('routers'):
         self_link = router['selfLink']
-        print(router)
         network = router['network'].replace('https://www.googleapis.com/compute/v1/', "")
         routers.append({
             'project_id': self_link.split('/')[-5],
