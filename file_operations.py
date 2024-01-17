@@ -3,30 +3,31 @@ import yaml
 import tomli
 import tomli_w
 import csv
-import os
-import pathlib
-import platform
-import openpyxl
+import aiofiles
+from os import environ, makedirs, path
+from pathlib import Path
+from platform import system
+
+
+ENCODING = 'utf-8'
 
 
 def get_home_dir() -> str:
 
-    my_os = platform.system().lower()
-    if my_os.startswith("win"):
-        home_dir = os.environ.get("USERPROFILE")
-        seperator = "\\Documents\\"
-    elif my_os:
-        home_dir = os.environ.get("HOME")
-        seperator = "/"
-        if my_os.startswith("darwin"):
-            separator = "/Documents/"
-
-    return home_dir + seperator
+    if my_os := system().lower():
+        if my_os.startswith("win"):
+            home_dir = environ.get("USERPROFILE")
+            separator = "\\Documents\\"
+        else:
+            home_dir = environ.get("HOME")
+            separator = "/Documents/" if my_os.startswith("darwin") else "/"
+        return home_dir + separator
 
 
-async def write_to_excel(sheets: dict, file_name: str = "gcp_network_data.xlsx", start_row: int = 1):
+async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row: int = 1):
 
-    #wb_data = {field: list(sheets[field]) for field in list(sheets.keys())}
+    import openpyxl
+
     output_file = f"{get_home_dir()}{file_name}"
 
     wb = openpyxl.Workbook()
@@ -69,24 +70,31 @@ async def write_to_excel(sheets: dict, file_name: str = "gcp_network_data.xlsx",
     print(f"Wrote data to file: {output_file}")
 
 
-async def read_data_file(file_name: str, file_format: str = "toml") -> dict:
+async def read_data_file(file_name: str, file_format: str = None) -> dict:
 
-    if path := pathlib.Path(file_name):
+    if not file_format:
+        file_format = file_name.split('.')[-1].lower()
+
+    if path := Path(file_name):
         if path.is_file():
+            if path.stat().st_size == 0:
+                return {}  # File exists, but is empty
             with open(file_name, mode="rb") as fp:
-                fn = file_name.lower()
-                ff = file_format.upper()
-                if fn.endswith('yaml') or fn.endswith('yml') or ff.startswith('yam'):
+                if file_format == 'yaml':
                     return yaml.load(fp, Loader=yaml.FullLoader)
-                else:
+                elif file_format == 'json':
+                    return json.load(fp)
+                elif file_format == 'toml':
                     return tomli.load(fp)
+                else:
+                    raise f"unhandled file format '{file_format}'"
 
 
-async def write_data_file(file_name: str, file_contents: list = [], file_format: str = None) -> dict:
+async def write_data_file(file_name: str, file_contents: any = None, file_format: str = None) -> dict:
 
     sub_dir = file_name.split('/')[0]
-    if not os.path.exists(sub_dir):
-        os.makedirs(sub_dir)
+    if not path.exists(sub_dir):
+        makedirs(sub_dir)
 
     if not file_format:
         file_format = file_name.split('.')[-1].lower()
@@ -94,23 +102,32 @@ async def write_data_file(file_name: str, file_contents: list = [], file_format:
     if file_format == 'yaml':
         _ = yaml.dump(file_contents)
     elif file_format == 'json':
-        _ = json.dumps(file_contents)
+        _ = json.dumps(file_contents, indent=4)
     elif file_format == 'toml':
-        _ = tomli_w.dumps({'items': file_contents})
+        _ = tomli_w.dumps(file_contents)
     elif file_format == 'csv':
         csvfile = open(file_name, 'w', newline='')
         writer = csv.writer(csvfile)
         writer.writerow(file_contents[0].keys())
         [writer.writerow(row.values()) for row in file_contents]
         csvfile.close()
-        return
     else:
         raise f"unhandled file format '{file_format}'"
+
     if file_format != 'csv':
         with open(file_name, mode="w") as fp:
             fp.write(_)
 
 
-def write_to_bucket(bucket_name: str, file_name: str, data: str = ""):
+async def write_file(file_name: str, file_contents: any = None, file_format: str = None) -> None:
 
-    pass
+    if '/' in file_name:
+        sub_dir = file_name.split('/')[0]
+        if not path.exists(sub_dir):
+            makedirs(sub_dir)
+
+    file_contents = "" if not file_contents else file_contents
+    if isinstance(file_contents, bytes):
+        file_contents = file_contents.decode(ENCODING)
+    async with aiofiles.open(file_name, mode='w', encoding=ENCODING) as fp:
+        await fp.write(file_contents)

@@ -1,14 +1,10 @@
-import platform
-import json
-import google.oauth2
-import google.auth
-import google.auth.transport.requests
-import datetime
 from aiohttp import ClientSession
+from datetime import datetime
 
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
+VERIFY_SSL = True
 
-
+"""
 def get_adc_token():
 
     try:
@@ -40,11 +36,10 @@ def read_service_account_key(file: str) -> str:
         return {'project_id': project_id, 'access_token': credentials.token}
     except Exception as e:
         raise e
+"""
 
 
 async def make_gcp_call(call: str, access_token: str, api_name: str) -> dict:
-
-    results = {'id': None, 'items': []}
 
     call = call[1:] if call.startswith("/") else call
     url = f"https://{api_name}.googleapis.com/{call}"
@@ -56,6 +51,8 @@ async def make_gcp_call(call: str, access_token: str, api_name: str) -> dict:
     else:
         key = url.split("/")[-1]
 
+    results = []
+    call_id = None
     try:
         headers = {'Authorization': f"Bearer {access_token}"}
         params = {}
@@ -64,19 +61,19 @@ async def make_gcp_call(call: str, access_token: str, api_name: str) -> dict:
                 async with session.get(url, headers=headers, params=params) as response:
                     if int(response.status) == 200:
                         json_data = await response.json()
-                        results['id'] = json_data.get('id')
+                        call_id = json_data.get('id')
                         if 'aggregated/' in url:
                             if key == 'items':
                                 items = json_data.get(key, {})
                                 for k, v in items.items():
-                                    results['items'].extend(v.get(url.split("/")[-1], []))
+                                    results.extend(v.get(url.split("/")[-1], []))
                         else:
                             if key == 'result':
                                 items = json_data.get(key)
-                                results['items'].append(items)
+                                results.append(items)
                             else:
                                 items = json_data.get(key, [])
-                                results['items'].extend(items)
+                                results.extend(items)
                         if page_token := json_data.get('nextPageToken'):
                             params.update({'pageToken': page_token})
                         else:
@@ -89,20 +86,21 @@ async def make_gcp_call(call: str, access_token: str, api_name: str) -> dict:
     return results
 
 
-async def get_projects(access_token: str) -> list:
+async def get_projects(access_token: str, sort_by: str = None) -> list:
 
     projects = []
+    fields = {'name': "name", 'id': "projectId", 'number': "projectNumber", 'created': "createTime",
+              'status': "lifecycleState"}
     try:
-        _ = await make_gcp_call('/v1/projects', access_token, api_name='cloudresourcemanager')
-        _ = sorted(_['items'], key=lambda x: x.get('name'), reverse=False)
+        _ = await make_api_call('https://cloudresourcemanager.googleapis.com/v1/projects', access_token)
+        if sort_by in fields.values():
+            # Sort by a field defined in the API
+            _ = sorted(_, key=lambda x: x.get(sort_by), reverse=False)
         for project in _:
-            projects.append({
-                'name': project.get('name', "UNKNOWN"),
-                'id': project.get('projectId', "UNKNOWN"),
-                'number': project.get('projectNumber', "UNKNOWN"),
-                'created': project.get('createTime', "UNKNOWN"),
-                'state': project.get('lifecycleState', "UNKNOWN"),
-            })
+            projects.append({k: project.get(v, "UNKNOWN") for k, v in fields.items()})
+        if sort_by in fields.keys():
+            # Sort by a field defined by us
+            projects = sorted(projects, key=lambda x: x.get(sort_by), reverse=False)
 
     except Exception as e:
         raise e
@@ -133,15 +131,15 @@ def convert_gcp_timestamp(gcp_timestamp: str = None) -> str:
     return int(time_stamp)
 
 
-def parse_results(results: dict, parse_function: str) -> list:
+def parse_results(items: list, parse_function: str) -> list:
 
     project_id = 'unknown'
-    if results_id := results.get('id'):
-        project_id = results_id.split('/')[1]
+    #if results_id := results.get('id'):
+    #    project_id = results_id.split('/')[1]
 
     parsed_items = []
 
-    for item in results.get('items'):
+    for item in items:
         if region := item.get('region'):
             region = region.split('/')[-1]
         else:
@@ -346,3 +344,99 @@ def parse_cloud_routers(item: dict, raw_data: dict) -> dict:
     del item['subnet_id']
 
     return item
+
+
+async def parse_item(item: dict) -> dict:
+
+    if zone := item.get('zone'):
+        zone = zone.split('/')[-1]
+        region = zone[:-2]
+    else:
+        region = item.get('region', "/global").split('/')[-1]
+
+    if self_link := item.get('selfLink'):
+        id = self_link.replace('https://www.googleapis.com/compute/v1/', "")
+        project_id = self_link.split('/')[-4 if region == 'global' else -5]
+        item.update({
+            #'self_link': self_link,
+            'id': id,
+            'project_id': project_id,
+            'region': region,
+        })
+        del item['selfLink']  # No longer need self link because we have the ID
+    else:
+        id = ""
+
+    if id.endswith('/networks'):
+        item.update({'network': id})
+    if id.endswith('/subnetworks'):
+        item.update({'subnetwork': id})
+
+    if network := item.get('network'):
+        network_id = network.replace('https://www.googleapis.com/compute/v1/', "")
+        network_name = network.split('/')[-1]
+        item.update({'network_id': network_id, 'network_name': network_name})
+    if subnetwork := item.get('subnetwork'):
+        subnet_id = subnetwork.replace('https://www.googleapis.com/compute/v1/', "")
+        subnet_name = subnetwork.split('/')[-1]
+        item.update({'subnet_id': subnet_id, 'subnet_name': subnet_name})
+    if zone:
+        item.update({'zone': zone})
+
+    return item
+
+
+async def make_api_call(url: str, access_token: str) -> list:
+
+    if url.startswith('http:') or url.startswith('https:'):
+        # Urls is fully defined, just need to find API name
+        _ = url[7:] if url.startswith('http:') else url[8:]
+        api_name = _.split('.')[0]
+    elif 'googleapis.com' in url:
+        # Url is missing http/https at the beginning
+        api_name = url.split('.')[0]
+        url = f"https://{url}"
+    elif '.' in url:
+        raise f"Unhandled URL: {url}"
+    else:
+        # Url is something like /compute/v1/projects/{PROJECT_ID}...
+        url = url[1:] if url.startswith("/") else url
+        api_name = url.split('/')[0]
+        url = f"https://{api_name}.googleapis.com/{url}"
+
+    if api_name in ['compute', 'sqladmin']:
+        items_key = 'items'
+    else:
+        items_key = url.split("/")[-1]
+
+    try:
+        headers = {'Authorization': f"Bearer {access_token}"}
+        params = {}  # Query string parameters to include in the request
+        async with ClientSession(raise_for_status=True) as session:
+            results = []
+            while True:
+                async with session.get(url, headers=headers, params=params, verify_ssl=VERIFY_SSL) as response:
+                    if int(response.status) == 200:
+                        json_data = await response.json()
+                        if items := json_data.get(items_key):
+                            if 'aggregated/' in url:
+                                # With aggregated results, we have to walk each region to get the items
+                                for k, v in items.items():
+                                    _ = url.split("/")[-1]
+                                    items = v.get(_, [])
+                            results.extend(items)
+                        else:
+                            if json_data.get('name'):
+                                results.append(json_data)
+                        # If more than 500 results, use page token for next page and keep the party going
+                        if next_page_token := json_data.get('nextPageToken'):
+                            params.update({'pageToken': next_page_token})
+                        else:
+                            break
+                    else:
+                        break  # non-200 usually means lack of permissions; just skip it
+    except Exception as e:
+        await session.close()    # Something went wrong when opening the session; don't leave it hanging
+
+    return results
+
