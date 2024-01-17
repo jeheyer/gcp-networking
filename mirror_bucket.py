@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-import traceback
 from asyncio import run, gather
 from sys import argv
 from math import ceil
-from storage_operations import get_storage_token, list_storage_objects, get_storage_object
-from file_operations import write_file
+from traceback import format_exc
+from gcloud.aio.auth import Token
+from gcloud.aio.storage import Storage
 
-PARALLEL_DOWNLOADS = 20
+SCOPES = ["https://www.googleapis.com/auth/cloud-platform.read-only"]
+PARALLEL_DOWNLOADS = 25
+TIMEOUT = 30
 
 """
 script that simply mirrors a GCS bucket to local files
@@ -16,29 +18,45 @@ script that simply mirrors a GCS bucket to local files
 async def main(bucket_name: str, prefix: str, service_file: str):
 
     try:
-        token = await get_storage_token(service_file)
-        object_names = await list_storage_objects(bucket_name, token, prefix if prefix else "")
+        token = Token(service_file=service_file, scopes=SCOPES)
     except Exception as e:
+        quit(e)
+
+    try:
+        params = {'prefix': prefix}
+        async with Storage(token=token) as storage:
+            objects = []
+            while True:
+                _ = await storage.list_objects(bucket_name, params=params, timeout=TIMEOUT)
+                objects.extend(_.get('items', []))
+                params['pageToken'] = _.get('nextPageToken')
+                if not params.get('pageToken'):
+                    break
+            await storage.close()
+    except Exception as e:
+        await storage.close()
         await token.close()
         raise e
 
-    pages = ceil(len(object_names) / PARALLEL_DOWNLOADS)
-    for page in range(0, pages):
-        start = page * PARALLEL_DOWNLOADS
-        end = start + PARALLEL_DOWNLOADS
-        o = object_names[start:end]
-        try:
-            #print(len(o))
-            tasks = [get_storage_object(bucket_name, token, object_name) for object_name in o]
-            blobs = await gather(*tasks)
-            blobs = dict(zip(o, blobs))
-            for object_name, blob in blobs.items():
-                await write_file(object_name, blob)
-        except Exception as e:
-            await token.close()
-            raise e
+    object_names = tuple([obj['name'] for obj in objects if int(obj.get('size', 0)) != 0])
 
+    try:
+        pages = ceil(len(object_names) / PARALLEL_DOWNLOADS)
+        async with Storage(token=token) as storage:
+            for page in range(0, pages):
+                start = page * PARALLEL_DOWNLOADS
+                end = start + PARALLEL_DOWNLOADS
+                o = object_names[start:end]
+                tasks = [storage.download_to_filename(bucket_name, object_name, object_name) for object_name in o]
+                await gather(*tasks)
+    except Exception as e:
+        await storage.close()
+        await token.close()
+        raise e
+
+    await storage.close()
     await token.close()
+
 
 if __name__ == '__main__':
 
@@ -53,4 +71,4 @@ if __name__ == '__main__':
                 message += f" <{arg_name}>"
             quit(message)
     except Exception as e:
-        quit(traceback.format_exc())
+        quit(format_exc())
