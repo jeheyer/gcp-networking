@@ -3,9 +3,9 @@
 from asyncio import run, gather
 from collections import Counter
 from file_operations import write_to_excel
-from gcp_operations import get_projects, make_api_call, make_gcp_call, parse_item
-from auth_operations import get_adc_token
-from main import get_calls
+from gcp_operations import get_projects, make_api_call, make_gcp_call, parse_item, get_project_details
+from auth_operations import get_adc_token, read_service_account_key
+from main import get_settings, get_calls
 
 CALLS = ('vpc_networks', 'firewall_rules', 'subnetworks', 'instance_nics', 'forwarding_rules', 'cloud_routers')
 XLSX_FILE = "network_quotas.xlsx"
@@ -20,8 +20,33 @@ async def main():
 
     try:
         access_token = await get_adc_token()
+        projects = await get_projects(access_token)
     except Exception as e:
         quit(e)
+
+    """
+    try:
+        projects = []
+        settings = await get_settings()
+        key_dir = settings.get('key_dir', './')
+        if environments := settings.get('environments'):
+            for environment, env_settings in environments.items():
+                if auth_files := env_settings.get('auth_files'):
+                    for auth_file in auth_files:
+                        key_file = f"{key_dir}/{auth_file}"
+                        sa_key = await read_service_account_key(key_file)
+                        project_id = sa_key.get('project_id')
+                        access_token = sa_key.get('access_token')
+                        project = await get_project_details(project_id, access_token)
+                        _ = {k: project.get(k) for k in project.keys()}
+                        _.update({
+                            'environment': environment,
+                            'access_token': access_token,
+                        })
+                        projects.append(_)
+    except Exception as e:
+        raise e
+    """
 
     sheets = {
         'projects': {'description': "Project Counts"},
@@ -30,22 +55,17 @@ async def main():
         'cloud_nats': {'description': "Cloud NAT Counts"},
     }
 
-    # Get all Projects
-    projects = await get_projects(access_token)
-    project_ids = [project['id'] for project in projects]
-
     # Form a dictionary of relevant API Calls
     _ = await get_calls()
     calls = {k: v.get('calls')[0] for k, v in _.items() if k in CALLS}
 
     # Get all network data
+    project_ids = [project['id'] for project in projects]
     network_data = {}
     for k, call in calls.items():
         # Perform API calls
-        print(k, call)
         urls = [f"/compute/v1/projects/{project_id}/{call}" for project_id in project_ids]
         tasks = [make_gcp_call(url, access_token, api_name='compute') for url in urls]
-        #tasks = [make_api_call(url, access_token) for url in urls]
         _ = await gather(*tasks)
         # Parse items and add to network_data
         items = []
@@ -156,9 +176,9 @@ async def main():
             'routers': [_ for _ in routers if _['project_id'] == project_id],
         }
         project_counts.append({
-            'project_id': project_id,
-            'project_number': project.get('number'),
-            'project_status': project.get('status', "UNKNOWN"),
+            'id': project_id,
+            'number': project.get('number'),
+            'status': project.get('status', "UNKNOWN"),
             'num_networks': len(counts['networks']),
             'num_firewalls': len(counts['firewalls']),
             'num_routers': len(counts['routers']),
@@ -170,7 +190,7 @@ async def main():
         _ = Counter([nic['region'] for nic in instance_nics if nic['network_id'] == network['id']])
         for region, instance_count in _.items():
             cloud_nats.append({
-                'network_project_id': network['project_id'],
+                'project_id': network['project_id'],
                 'network_name': network['name'],
                 'region': region,
                 'num_instances': instance_count,
@@ -180,6 +200,9 @@ async def main():
     # Create and save the Excel workbook
     _ = await write_to_excel(sheets, XLSX_FILE)
 
+    return sheets
+
 if __name__ == "__main__":
 
-    run(main())
+    _ = run(main())
+    print(_)

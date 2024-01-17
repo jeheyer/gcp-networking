@@ -1,8 +1,16 @@
 from aiohttp import ClientSession
+from asyncio import gather
 from datetime import datetime
 
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 VERIFY_SSL = True
+PROJECT_FIELDS = {
+    'name': "name",
+    'id': "projectId",
+    'number': "projectNumber",
+    'created': "createTime",
+    'status': "lifecycleState"
+}
 
 """
 def get_adc_token():
@@ -86,19 +94,36 @@ async def make_gcp_call(call: str, access_token: str, api_name: str) -> dict:
     return results
 
 
+async def parse_project(project: dict) -> dict:
+
+    return {k: project.get(v, "UNKNOWN") for k, v in PROJECT_FIELDS.items()}
+
+
+async def get_project_details(project_id: str, access_token: str) -> dict:
+
+    try:
+        url = f"https://cloudresourcemanager.googleapis.com/v1/projects/{project_id}"
+        #print("making api all", url)
+        _ = await make_api_call(url, access_token)
+        #print(_)
+        _ = await parse_project(_[0]) if len(_) == 1 else {}
+        return _
+    except Exception as e:
+        raise e
+
+
 async def get_projects(access_token: str, sort_by: str = None) -> list:
 
     projects = []
-    fields = {'name': "name", 'id': "projectId", 'number': "projectNumber", 'created': "createTime",
-              'status': "lifecycleState"}
     try:
         _ = await make_api_call('https://cloudresourcemanager.googleapis.com/v1/projects', access_token)
-        if sort_by in fields.values():
+        if sort_by in PROJECT_FIELDS.values():
             # Sort by a field defined in the API
             _ = sorted(_, key=lambda x: x.get(sort_by), reverse=False)
-        for project in _:
-            projects.append({k: project.get(v, "UNKNOWN") for k, v in fields.items()})
-        if sort_by in fields.keys():
+        #print(_)
+        tasks = (parse_project(project) for project in _)
+        projects = await gather(*tasks)
+        if sort_by in PROJECT_FIELDS.keys():
             # Sort by a field defined by us
             projects = sorted(projects, key=lambda x: x.get(sort_by), reverse=False)
 
@@ -427,6 +452,7 @@ async def make_api_call(url: str, access_token: str) -> list:
                             results.extend(items)
                         else:
                             if json_data.get('name'):
+                                print("url:", url, json_data)
                                 results.append(json_data)
                         # If more than 500 results, use page token for next page and keep the party going
                         if next_page_token := json_data.get('nextPageToken'):
